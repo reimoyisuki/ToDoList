@@ -23,6 +23,16 @@ export const AuthProvider = ({ children }) => {
     return config;
     });
 
+    const updateUsername = async (newUsername) => {
+    try {
+        const response = await api.put('/user/update-username', { newUsername });
+        if (response.data.success) {
+        setUser(prev => ({...prev, username: newUsername}));
+        }
+    } catch (error) {
+        throw new Error(error.response?.data?.message || 'Update failed');
+    }
+};
     const login = async (credentials) => {
         try {
             setLoading(true);
