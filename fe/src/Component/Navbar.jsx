@@ -37,8 +37,8 @@ const Navbar = ({ isOpen, toggleNavbar }) => {
                         <NavItem 
                             isOpen={isOpen} 
                             icon={<IoChatbubblesOutline size={20} />} 
-                            text="Group Chat" 
-                            to="/chatlog"
+                            text="Group" 
+                            to="/groups"
                             active={getActiveState('Group Chat')} 
                         />
                         <NavItem 
