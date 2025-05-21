@@ -1,25 +1,37 @@
 const Message = require('../models/Message');
+const Group = require('../models/Group');
 
 exports.sendGroupMessage = async (req, res) => {
     try {
-        const { content, groupId } = req.body;
-        
+        const { message, groupId } = req.body;
+        const senderId = req.user._id;
+
+        if (!message || !groupId) {
+            return res.status(400).json({ 
+                error: "Message content and groupId are required." 
+            });
+        }
         // Verify user is group member
         const group = await Group.findById(groupId);
         if (!group.members.includes(req.user._id)) {
             return res.status(403).json({ error: 'Not a group member' });
         }
+        if (!message || !groupId || !senderId) {
+            return res.status(400).json({ 
+                error: "Message, groupId, and senderId are required." 
+            });
+        }
 
-        const message = new Message({
-            content,
-            sender: req.user._id,
-            group: groupId,
-            readBy: [req.user._id]
+        const newMessage = new Message({
+            content:message,
+            sender: senderId,
+            groupId: groupId,
+            readBy: [senderId]
         });
 
-        await message.save();
+        await newMessage.save();
 
-        res.status(201).json(message);
+        res.status(201).json(newMessage);
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
@@ -35,7 +47,7 @@ exports.getGroupMessages = async (req, res) => {
             return res.status(403).json({ error: 'Not a group member' });
         }
 
-        const messages = await Message.find({ group: groupId })
+        const messages = await Message.find({ groupId: groupId })
             .sort('-createdAt')
             .limit(50)
             .populate('sender', 'username');

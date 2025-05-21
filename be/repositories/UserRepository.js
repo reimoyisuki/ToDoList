@@ -69,7 +69,16 @@ async function login(req, res) {
             process.env.JWT_SECRET || "secretsecret",
             { expiresIn: "2h" }
         );
-        
+
+        user.lastActive = Date.now();
+        user.isOnline = true;
+        user.loginHistory.push({
+            timestamp: Date.now(),
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent']
+        });
+        await user.save();
+
         console.log("Generated token:", token);
         if (!token) {
             return res.status(500).json({
@@ -201,6 +210,53 @@ async function getUserByUsername(req, res) {
     }
 }
 
+async function logout(req, res) {
+    try {
+        const user = req.user;
+        user.isOnline = false;
+        await user.save();
+        
+        res.status(200).json({
+            success: true,
+            message: "Logged out successfully"
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+}
+
+async function getActivityStats(req, res) {
+    try {
+        const stats = await User.getUserActivityStats();
+        const activeCount = await User.getActiveUsersCount();
+        
+        res.status(200).json({
+            success: true,
+            data: {
+                stats,
+                activeCount,
+                totalUsers: await User.countDocuments()
+            }
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+}
+
+async function getUserActivity(req, res) {
+    try {
+        const user = await User.findById(req.params.id)
+            .select('username email lastActive isOnline loginHistory');
+            
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+}
+
 module.exports = {
     register,
     login,
@@ -208,5 +264,8 @@ module.exports = {
     changeName,
     deleteAccount,
     getAllUsers,
-    getUserByUsername
+    getUserByUsername,
+    logout,
+    getActivityStats,
+    getUserActivity
 };
