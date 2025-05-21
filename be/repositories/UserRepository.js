@@ -15,7 +15,7 @@ async function register(req, res) {
         const user = new User({ username, email, password });
         await user.save();
         const token = jwt.sign(
-            { id: user._id, username: user.username },
+            { id: user._id.toString(), username: user.username },
             process.env.JWT_SECRET || "secretsecret",
             { expiresIn: "2h" }
         );
@@ -65,7 +65,7 @@ async function login(req, res) {
 
         console.log("Credentials valid, generating token...");
         const token = jwt.sign(
-            { id: user._id, username: user.username },
+            { id: user._id.toString(), username: user.username },
             process.env.JWT_SECRET || "secretsecret",
             { expiresIn: "2h" }
         );
@@ -103,8 +103,10 @@ async function getUser(req, res) {
         res.json({
             success: true,
             data: {
+                _id: user._id,
                 username: user.username,
                 email: user.email
+                
             }
         });
     } catch (err) {
@@ -177,11 +179,34 @@ async function deleteAccount(req, res) {
     }
 }
 
+async function getUserByUsername(req, res) {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "User not found" 
+            });
+        }
+        res.status(200).json({ 
+            success: true, 
+            message: "User found",
+            data: user 
+        });
+    } catch (err) {
+        res.status(400).json({ 
+            success: false, 
+            message: err.message 
+        });
+    }
+}
+
 module.exports = {
     register,
     login,
     getUser,
     changeName,
     deleteAccount,
-    getAllUsers
+    getAllUsers,
+    getUserByUsername
 };

@@ -13,7 +13,13 @@ const groupSchema = new mongoose.Schema(
         members: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            required: true
+            required: true,
+            validate: {
+                validator: function(v) {
+                    return mongoose.Types.ObjectId.isValid(v);
+                },
+                message: props => `${props.value} is not a valid user ID!`
+            }
         }],
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,

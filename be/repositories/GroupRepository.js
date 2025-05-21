@@ -4,21 +4,29 @@ const Todo = require('../models/Todo');
 
 async function createGroup(req, res) {
     try {
-        const { name, description, members } = req.body;
-        
+        const { name, description, memberUsernames } = req.body;
         const createdBy = req.user._id;
+
+        // Find users by their usernames
+        const users = await User.find({ username: { $in: memberUsernames } });
+        const memberIds = users.map(user => user._id);
+
+        // Include the creator in the members list
+        const allMembers = [...memberIds, createdBy];
+
         const group = new Group({
             name,
             description,
             createdBy,
-            members: [...members, createdBy],
+            members: allMembers, // Array of ObjectIds
             admins: [createdBy]
         });
 
         await group.save();
-        
+
+        // Update all members' `groups` array
         await User.updateMany(
-            { _id: { $in: group.members } },
+            { _id: { $in: allMembers } },
             { $addToSet: { groups: group._id } }
         );
 
@@ -29,41 +37,74 @@ async function createGroup(req, res) {
         });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
-        console.log(`Error Message: ${err.message}`);
+        console.error(`Error: ${err.message}`);
     }
 }
 
 async function addMember(req, res) {
     try {
-        const { groupId, userId, adminId } = req.body;
+        const { groupId, adminId, memberUsernames } = req.body;
         
-        // Check if admin is actually an admin of the group
+        // Validasi input
+        if (!Array.isArray(memberUsernames)) {
+            throw new Error("memberUsernames should be an array");
+        }
+
         const group = await Group.findById(groupId);
+        if (!group) {
+            throw new Error("Group not found");
+        }
+
+        // Check if admin is actually an admin of the group
         if (!group.admins.includes(adminId)) {
             throw new Error("Only admins can add members");
         }
+
+        const results = [];
         
-        // Add user to group
-        const updatedGroup = await Group.findByIdAndUpdate(
-            groupId,
-            { $addToSet: { members: userId } },
-            { new: true }
-        );
-        
-        // Add group to user's groups array
-        await User.findByIdAndUpdate(
-            userId,
-            { $addToSet: { groups: groupId } }
-        );
+        for (const username of memberUsernames) {
+            try {
+                const user = await User.findOne({ username });
+                if (!user) {
+                    results.push({ username, status: 'failed', message: 'User not found' });
+                    continue;
+                }
+
+                // Check if user is already a member
+                if (group.members.includes(user._id)) {
+                    results.push({ username, status: 'skipped', message: 'Already a member' });
+                    continue;
+                }
+
+                // Add user to group
+                await Group.findByIdAndUpdate(
+                    groupId,
+                    { $addToSet: { members: user._id } }
+                );
+
+                // Add group to user's groups array
+                await User.findByIdAndUpdate(
+                    user._id,
+                    { $addToSet: { groups: groupId } }
+                );
+
+                results.push({ username, status: 'success' });
+            } catch (err) {
+                results.push({ username, status: 'error', message: err.message });
+            }
+        }
+
+        const updatedGroup = await Group.findById(groupId).populate('members', 'username');
 
         res.status(200).json({
             success: true,
-            message: "Member added successfully",
+            message: "Operation completed",
+            results,
             data: updatedGroup
         });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
-        console.log(`Error Message: ${err.message}`);
+        console.error(`Error in addMember: ${err.message}`);
     }
 }
 

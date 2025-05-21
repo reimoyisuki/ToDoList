@@ -7,7 +7,8 @@ const {
     getUser,
     changeName,
     deleteAccount,
-    getAllUsers
+    getAllUsers,
+    getUserByUsername
 } = require('../repositories/UserRepository');
 
 router.post('/register', register);
@@ -16,5 +17,6 @@ router.get('/profile', authMiddleware, getUser);
 router.put('/changename/:id', changeName);
 router.delete('/delete/:id', deleteAccount);
 router.get('/all', getAllUsers);
+router.get('/username/:username', authMiddleware, getUserByUsername);
 
 module.exports = router;

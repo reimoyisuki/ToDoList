@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
@@ -7,44 +7,58 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Setup axios instance
-    const api = axios.create({
-        baseURL: 'http://localhost:4000',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    });
+    // Axios instance yang stabil
+    const api = useMemo(() => {
+        const instance = axios.create({
+            baseURL: 'http://localhost:4000',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
 
-    api.interceptors.request.use(config => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-    });
+        instance.interceptors.request.use(config => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+            return config;
+        });
 
-    const updateUsername = async (newUsername) => {
-    try {
-        const response = await api.put('/user/update-username', { newUsername });
-        if (response.data.success) {
-        setUser(prev => ({...prev, username: newUsername}));
+        return instance;
+    }, []);
+
+    const fetchUserProfile = useCallback(async () => {
+        try {
+            setLoading(true);
+            const { data } = await api.get('/user/profile');
+            if (data.success) {
+                setUser({
+                    id: data.data._id,
+                    username: data.data.username,
+                    email: data.data.email
+                });
+            }
+            return data.data;
+        } catch (error) {
+            console.error("Profile fetch error:", error.response?.data || error.message);
+            if (error.response?.status === 401) {
+                localStorage.removeItem('token');
+                setUser(null);
+            }
+            return null;
+        } finally {
+            setLoading(false);
         }
-    } catch (error) {
-        throw new Error(error.response?.data?.message || 'Update failed');
-    }
-};
-    const login = async (credentials) => {
+    }, [api]);
+
+    const login = useCallback(async (credentials) => {
         try {
             setLoading(true);
             const { data } = await api.post('/user/login', credentials);
             
             if (data.success && data.token) {
-                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('token', data.token);
                 await fetchUserProfile();
-                setUser({
-                    username: data.data.username,
-                    email: data.data.email
-                });
                 return true;
             }
             return false;
@@ -54,54 +68,57 @@ export const AuthProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [api, fetchUserProfile]);
 
-    const fetchUserProfile = async () => {
+    const logout = useCallback(() => {
+        localStorage.removeItem('token');
+        setUser(null);
+    }, []);
+
+    const updateUsername = useCallback(async (newUsername) => {
         try {
-            setLoading(true);
-            const { data } = await api.get('/user/profile');
-            
-            if (data.success) {
-                setUser({
-                    username: data.data.username,
-                    email: data.data.email
-                });
+            const response = await api.put('/user/update-username', { newUsername });
+            if (response.data.success) {
+                setUser(prev => ({ ...prev, username: newUsername }));
+                return true;
             }
+            return false;
         } catch (error) {
-            console.error("Profile fetch error:", error.response?.data || error.message);
-            if (error.response?.status === 401) {
-                localStorage.removeItem('token');
-                setUser(null);
-            }
-        } finally {
-            setLoading(false);
+            throw new Error(error.response?.data?.message || 'Update failed');
         }
-    };
+    }, [api]);
 
+    // Nilai konteks yang stabil
+    const contextValue = useMemo(() => ({
+        user,
+        loading,
+        login,
+        logout,
+        updateUsername,
+        api
+    }), [user, loading, login, logout, updateUsername, api]);
+
+    // Effect untuk load user awal
     useEffect(() => {
         const token = localStorage.getItem('token');
-        if (token) {
+        if (token && !user) {
             fetchUserProfile();
         } else {
             setLoading(false);
         }
-    }, []);
-
-    const value = {
-        user,
-        loading,
-        login,
-        logout: () => {
-            localStorage.removeItem('token');
-            setUser(null);
-        }
-    };
+    }, [fetchUserProfile, user]);
 
     return (
-        <AuthContext.Provider value={value}>
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};
