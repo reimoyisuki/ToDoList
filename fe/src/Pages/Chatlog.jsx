@@ -74,9 +74,10 @@ export default function GroupChat() {
                 const response = await api.get(`/message/${groupId}`, {
                     userId: currentUser.id
                 });
+                console.log('Messages response:', response.data);
 
-                if (response.data.success) {
-                    setMessages(response.data.data);
+                if (response.data) {
+                    setMessages(response.data.data || response.data);
                 } else {
                     setError('Failed to load messages');
                 }
@@ -100,15 +101,15 @@ export default function GroupChat() {
         try {
             const response = await api.post('/message/send', {
                 groupId,
-                senderId: currentUser.id,
                 message: newMessage
             });
+            console.log('Message send response:', response.data);
 
-            if (response.data.success) {
-                setMessages([...messages, response.data.data]);
-                setNewMessage('');
+            if (response.data) {
+                setMessages(prev => [...prev, response.data]);
+            setNewMessage('');
             } else {
-                setError('Failed to send message');
+                setError('Failed to send message: Invalid response format');
             }
         } catch (error) {
             console.error("Failed to send message:", error);
@@ -300,17 +301,17 @@ export default function GroupChat() {
                                 messages.map((message) => (
                                     <div 
                                         key={message._id}
-                                        className={`flex ${message.sender._id === currentUser?._id ? 'justify-end' : 'justify-start'}`}
+                                        className={`flex ${message.sender?._id === currentUser?._id ? 'justify-end' : 'justify-start'}`}
                                     >
                                         <div className={`max-w-xs md:max-w-md rounded-lg p-3 ${
-                                            message.sender._id === currentUser?._id 
+                                            message.sender?._id === currentUser?._id 
                                                 ? 'bg-amber-700 text-amber-100 rounded-br-none' 
                                                 : 'bg-gray-700 text-gray-100 rounded-bl-none'
                                         }`}>
                                             <div className="text-xs text-amber-300 mb-1">
-                                                {message.sender.username} • {formatTime(message.createdAt)}
+                                                {message.sender?.username} • {formatTime(message.createdAt)}
                                             </div>
-                                            <p className="text-sm">{message.message}</p>
+                                            <p className="text-sm">{message.content}</p>
                                         </div>
                                     </div>
                                 ))
