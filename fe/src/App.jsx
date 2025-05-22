@@ -8,6 +8,7 @@ import Navbar from './Component/Navbar';
 import TodoList from './Pages/TodoList';
 import Drawboard from './Pages/Board';
 import Account from './Pages/Account';
+import Groups from './Pages/Groups';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -27,8 +28,9 @@ function App() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
                     <Route path="/navbar" element={<Navbar />} />
+                    <Route path="/groups" element={<Groups />} />
                     <Route 
-                        path="/chatlog" 
+                        path="/chatlog/:groupId" 
                         element={
                             <ProtectedRoute>
                                 <Navbar />

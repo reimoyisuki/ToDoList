@@ -34,7 +34,7 @@ export default function Signup() {
             if (data.token) {
                 localStorage.setItem('token', data.token);
             }
-            navigate('/chatlog');
+            navigate('/groups');
         } catch (err) {
             if (err.response ) {
                 setError(err.response.data.message || 'Signup failed');

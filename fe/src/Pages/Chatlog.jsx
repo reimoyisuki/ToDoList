@@ -2,79 +2,82 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from '../Component/Navbar';
+import { useAuth } from '../Component/auth-context';
 
 export default function GroupChat() {
     const { groupId } = useParams();
+    const navigate = useNavigate();
+    const {
+        user: currentUser,
+        api,
+        loading: authLoading
+    } = useAuth();
+    
     const [isNavOpen, setIsNavOpen] = useState(true);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const [currentUser, setCurrentUser] = useState(null);
     const [groupDetails, setGroupDetails] = useState(null);
     const [error, setError] = useState('');
-    const navigate = useNavigate();
+    const [isMember, setIsMember] = useState(false);
+    const [newMemberUsername, setNewMemberUsername] = useState('');
+    const [addMemberSuccess, setAddMemberSuccess] = useState('');
+    const [isAddingMember, setIsAddingMember] = useState(false);
+    const [addMemberError, setAddMemberError] = useState('');
+    
     const messagesEndRef = useRef(null);
 
+    // Reset state ketika group berubah
     useEffect(() => {
-        const fetchUserData = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    navigate('/login');
-                    return;
-                }
-
-                const response = await axios.get('http://localhost:4000/user/profile', {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                });
-
-                if (response.data.success) {
-                    setCurrentUser(response.data.data);
-                    setIsLoading(false);
-                }
-            } catch (err) {
-                console.error('Error fetching user data:', err);
-                setError('Failed to load user data');
-                setIsLoading(false);
-            }
+        return () => {
+            setMessages([]);
+            setGroupDetails(null);
+            setIsMember(false);
+            setError('');
         };
+    }, [groupId]);
 
-        fetchUserData();
-    }, [navigate]);
-
+    // Ambil detail group
     useEffect(() => {
         const fetchGroupDetails = async () => {
-            if (!currentUser) return;
+            if (!currentUser?.id) return;
 
             try {
-                const response = await axios.post(`http://localhost:4000/group/details/${groupId}`, {
-                    userId: currentUser._id
+                const response = await api.get(`/group/details/${groupId}`, {
+                    userId: currentUser.id
                 });
 
                 if (response.data.success) {
                     setGroupDetails(response.data.data);
+                    setIsMember(true);
                 } else {
-                    setError('Failed to load group details');
+                    setError(response.data.message || 'Failed to load group details');
+                    setIsMember(false);
                 }
             } catch (err) {
                 console.error('Error fetching group details:', err);
-                setError('Failed to load group details');
+                setError(err.response?.data?.message || 'Failed to load group details');
+                setIsMember(false);
             }
         };
 
+        fetchGroupDetails();
+    }, [currentUser, groupId, api]);
+
+    // Ambil pesan group
+    useEffect(() => {
         const fetchGroupMessages = async () => {
-            if (!currentUser) return;
+            if (!currentUser?.id || !isMember) return;
 
             try {
                 setIsLoading(true);
-                const response = await axios.post(`http://localhost:4000/message/${groupId}`, {
-                    userId: currentUser._id
+                const response = await api.get(`/message/${groupId}`, {
+                    userId: currentUser.id
                 });
+                console.log('Messages response:', response.data);
 
-                if (response.data.success) {
-                    setMessages(response.data.data);
+                if (response.data) {
+                    setMessages(response.data.data || response.data);
                 } else {
                     setError('Failed to load messages');
                 }
@@ -86,26 +89,27 @@ export default function GroupChat() {
             }
         };
 
-        fetchGroupDetails();
-        fetchGroupMessages();
-    }, [currentUser, groupId]);
+        if (isMember) {
+            fetchGroupMessages();
+        }
+    }, [currentUser, groupId, isMember, api]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
-        if (!newMessage.trim()) return;
+        if (!newMessage.trim() || !isMember) return;
 
         try {
-            const response = await axios.post('http://localhost:4000/message/send', {
+            const response = await api.post('/message/send', {
                 groupId,
-                senderId: currentUser._id,
                 message: newMessage
             });
+            console.log('Message send response:', response.data);
 
-            if (response.data.success) {
-                setMessages([...messages, response.data.data]);
-                setNewMessage('');
+            if (response.data) {
+                setMessages(prev => [...prev, response.data]);
+            setNewMessage('');
             } else {
-                setError('Failed to send message');
+                setError('Failed to send message: Invalid response format');
             }
         } catch (error) {
             console.error("Failed to send message:", error);
@@ -116,10 +120,10 @@ export default function GroupChat() {
     const handleLeaveGroup = async () => {
         if (window.confirm('Are you sure you want to leave this group?')) {
             try {
-                await axios.put('http://localhost:4000/group/remove-member', {
+                await api.put('/group/remove-member', {
                     groupId,
-                    memberId: currentUser._id,
-                    adminId: currentUser._id
+                    memberId: currentUser.id,
+                    adminId: currentUser.id
                 });
                 navigate('/groups');
             } catch (error) {
@@ -129,6 +133,46 @@ export default function GroupChat() {
         }
     };
 
+    const handleAddMember = async (e) => {
+        e.preventDefault();
+        if (!newMemberUsername.trim()) return;
+
+        setIsAddingMember(true);
+        setAddMemberError('');
+        setAddMemberSuccess('');
+
+        try {
+            const response = await api.put('/group/add-member', {
+                groupId,
+                memberUsernames: [newMemberUsername.trim()],
+                adminId: currentUser.id
+            });
+
+            if (response.data.success) {
+                // Refresh group details
+                const groupResponse = await api.get(`/group/details/${groupId}`, {
+                    userId: currentUser.id
+                });
+
+                if (groupResponse.data.success) {
+                    setGroupDetails(groupResponse.data.data);
+                    setNewMemberUsername('');
+                    setAddMemberSuccess(`${newMemberUsername} added successfully!`);
+                    setTimeout(() => setAddMemberSuccess(''), 3000);
+                }
+            } else {
+                throw new Error(response.data.message || 'Failed to add member');
+            }
+        } catch (error) {
+            console.error("Failed to add member:", error);
+            setAddMemberError(error.response?.data?.message || error.message || 'Failed to add member');
+        } finally {
+            setIsAddingMember(false);
+        }
+    };
+
+    const isAdmin = groupDetails?.admins.some(admin => admin._id === currentUser?.id);
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -136,6 +180,37 @@ export default function GroupChat() {
     const formatTime = (timestamp) => {
         return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
+
+    if (authLoading) {
+        return <div>Loading user data...</div>;
+    }
+
+    if (!currentUser) {
+        navigate('/login');
+        return null;
+    }
+
+    if (!isMember && !isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-900 p-4">
+                <Navbar isOpen={isNavOpen} toggleNavbar={() => setIsNavOpen(!isNavOpen)} />
+                <main className={`transition-all duration-300 ${isNavOpen ? 'ml-64' : 'ml-20'}`}>
+                    <div className="flex justify-center items-center h-full">
+                        <div className="bg-gray-800 p-8 rounded-lg max-w-md w-full text-center">
+                            <h3 className="text-2xl text-amber-400 mb-4">Access Denied</h3>
+                            <p className="text-gray-300 mb-6">{error || 'You are not a member of this group'}</p>
+                            <button
+                                onClick={() => navigate('/groups')}
+                                className="bg-amber-600 hover:bg-amber-500 text-amber-100 px-4 py-2 rounded-md"
+                            >
+                                Back to Groups
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-900 p-4">
@@ -157,13 +232,40 @@ export default function GroupChat() {
                                         member._id === currentUser?._id ? 'text-amber-300' : 'text-gray-300'
                                     }`}>
                                         {member.username}
-                                        {groupDetails?.admins.some(admin => admin === member._id) && (
+                                        {groupDetails?.admins.some(admin => admin._id === member._id) && (
                                             <span className="ml-1 text-xs text-amber-400">(admin)</span>
                                         )}
                                     </span>
                                 </div>
                             ))}
                         </div>
+
+                        {/* Add Member Form (for admins) */}
+                        {isAdmin && (
+                            <form onSubmit={handleAddMember} className="mt-4">
+                                <div className="flex flex-col gap-2">
+                                    <input
+                                        type="memberUsername"
+                                        value={newMemberUsername}
+                                        onChange={(e) => setNewMemberUsername(e.target.value)}
+                                        placeholder="Enter user's username"
+                                        className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-sm text-amber-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                        disabled={isAddingMember}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={isAddingMember || !newMemberUsername.trim()}
+                                        className="bg-green-600 hover:bg-green-500 text-green-100 px-3 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isAddingMember ? 'Adding...' : 'Add Member'}
+                                    </button>
+                                    {addMemberError && (
+                                        <p className="text-xs text-red-400">{addMemberError}</p>
+                                    )}
+                                </div>
+                            </form>
+                        )}
+
                         <button
                             onClick={handleLeaveGroup}
                             className="mt-4 w-full text-xs text-red-400 hover:text-red-300 font-mono border border-red-400 px-2 py-1 rounded"
@@ -180,6 +282,7 @@ export default function GroupChat() {
                             </h3>
                             <div className="text-xs text-gray-400">
                                 {groupDetails?.members.length} members
+                                {isAdmin && <span className="ml-1 text-amber-400">• Admin</span>}
                             </div>
                         </div>
 
@@ -198,17 +301,17 @@ export default function GroupChat() {
                                 messages.map((message) => (
                                     <div 
                                         key={message._id}
-                                        className={`flex ${message.sender._id === currentUser?._id ? 'justify-end' : 'justify-start'}`}
+                                        className={`flex ${message.sender?._id === currentUser?._id ? 'justify-end' : 'justify-start'}`}
                                     >
                                         <div className={`max-w-xs md:max-w-md rounded-lg p-3 ${
-                                            message.sender._id === currentUser?._id 
+                                            message.sender?._id === currentUser?._id 
                                                 ? 'bg-amber-700 text-amber-100 rounded-br-none' 
                                                 : 'bg-gray-700 text-gray-100 rounded-bl-none'
                                         }`}>
                                             <div className="text-xs text-amber-300 mb-1">
-                                                {message.sender.username} • {formatTime(message.createdAt)}
+                                                {message.sender?.username} • {formatTime(message.createdAt)}
                                             </div>
-                                            <p className="text-sm">{message.message}</p>
+                                            <p className="text-sm">{message.content}</p>
                                         </div>
                                     </div>
                                 ))

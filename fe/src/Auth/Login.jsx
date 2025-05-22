@@ -33,7 +33,7 @@ export default function Login() {
             if (data.success && data.token) {
                 localStorage.setItem('token', data.token);
                 console.log('Login successful, redirecting...');
-                navigate('/chatlog');
+                navigate('/groups');
             } else {
                 setError('Login failed - Invalid response from server');
             }
