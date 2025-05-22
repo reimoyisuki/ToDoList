@@ -7,7 +7,7 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Setup axios instance
+    // Axios instance dengan interceptor
     const api = axios.create({
         baseURL: 'http://localhost:4000',
         headers: {
@@ -15,47 +15,36 @@ export const AuthProvider = ({ children }) => {
         }
     });
 
+    // Interceptor untuk menambahkan token
     api.interceptors.request.use(config => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
     });
 
-    const updateUsername = async (newUsername) => {
-    try {
-        const response = await api.put('/user/update-username', { newUsername });
-        if (response.data.success) {
-        setUser(prev => ({...prev, username: newUsername}));
-        }
-    } catch (error) {
-        throw new Error(error.response?.data?.message || 'Update failed');
-    }
-};
+    // Fungsi login
     const login = async (credentials) => {
         try {
             setLoading(true);
             const { data } = await api.post('/user/login', credentials);
             
             if (data.success && data.token) {
-                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('token', data.token);
                 await fetchUserProfile();
-                setUser({
-                    username: data.data.username,
-                    email: data.data.email
-                });
                 return true;
             }
             return false;
         } catch (error) {
             console.error("Login error:", error.response?.data || error.message);
-            return false;
+            throw new Error(error.response?.data?.message || 'Login failed');
         } finally {
             setLoading(false);
         }
     };
 
+    // Fungsi fetch profil user
     const fetchUserProfile = async () => {
         try {
             setLoading(true);
@@ -63,38 +52,83 @@ export const AuthProvider = ({ children }) => {
             
             if (data.success) {
                 setUser({
+                    id: data.data._id,
                     username: data.data.username,
-                    email: data.data.email
+                    email: data.data.email,
+                    createdAt: data.data.createdAt,
+                    groups: data.data.groups?.map(g => ({
+                        id: g._id,
+                        name: g.name,
+                        description: g.description,
+                        isAdmin: g.isAdmin,
+                        memberCount: g.memberCount
+                    })) || []
                 });
             }
         } catch (error) {
-            console.error("Profile fetch error:", error.response?.data || error.message);
-            if (error.response?.status === 401) {
-                localStorage.removeItem('token');
-                setUser(null);
-            }
+            console.error("Profile error:", error.response?.data || error.message);
+            if (error.response?.status === 401) logout();
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            fetchUserProfile();
-        } else {
-            setLoading(false);
+    // Fungsi update username
+    const updateUsername = async (newUsername) => {
+        try {
+            if (!user?.id) throw new Error('User ID not found');
+            
+            const { data } = await api.put(`/changename/${user.id}`, {
+                newUsername
+            });
+
+            if (data.success) {
+                setUser(prev => ({
+                    ...prev,
+                    username: newUsername
+                }));
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Update error:", error.response?.data || error.message);
+            const errorMsg = error.response?.data?.message || 
+                (error.code === 11000 ? 'Username already exists' : 'Update failed');
+            throw new Error(errorMsg);
         }
+    };
+
+    // Fungsi logout
+    const logout = () => {
+        localStorage.removeItem('token');
+        setUser(null);
+    };
+
+    // Auto-fetch profile saat mount
+    useEffect(() => {
+        const initAuth = async () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    await fetchUserProfile();
+                } catch (error) {
+                    logout();
+                }
+            } else {
+                setLoading(false);
+            }
+        };
+        initAuth();
     }, []);
 
+    // Value context
     const value = {
         user,
         loading,
         login,
-        logout: () => {
-            localStorage.removeItem('token');
-            setUser(null);
-        }
+        logout,
+        updateUsername,
+        refreshProfile: fetchUserProfile
     };
 
     return (
@@ -104,4 +138,10 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};
