@@ -225,38 +225,6 @@ async function logout(req, res) {
     }
 }
 
-async function getActivityStats(req, res) {
-    try {
-        const stats = await User.getUserActivityStats();
-        const activeCount = await User.getActiveUsersCount();
-        
-        res.status(200).json({
-            success: true,
-            data: {
-                stats,
-                activeCount,
-                totalUsers: await User.countDocuments()
-            }
-        });
-    } catch (err) {
-        res.status(400).json({ success: false, message: err.message });
-    }
-}
-
-async function getUserActivity(req, res) {
-    try {
-        const user = await User.findById(req.params.id)
-            .select('username email lastActive isOnline loginHistory');
-            
-        res.status(200).json({
-            success: true,
-            data: user
-        });
-    } catch (err) {
-        res.status(400).json({ success: false, message: err.message });
-    }
-}
-
 module.exports = {
     register,
     login,
@@ -266,6 +234,4 @@ module.exports = {
     getAllUsers,
     getUserByUsername,
     logout,
-    getActivityStats,
-    getUserActivity
 };
