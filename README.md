@@ -1,10 +1,12 @@
-# Group Todo Management
+# Group Todo Management (Discuss)
 
 ##
-
+## Contributors
+```
 Azra Nabila Azzahra - 2306161782
 Arsinta Kirana Nisa - 2306215980
 Kharisma Aprilia - 2306223244
+```
 
 ## Overview
 
@@ -39,6 +41,18 @@ This Todo provides a comprehensive solution for managing group tasks, messages, 
 - Profile management
 - Activity tracking
 - Online status
+
+## Technologies Used
+
+- Node.js
+- Express.js
+- MongoDB (with Mongoose)
+- JWT for authentication
+- Bcrypt for password hashing
+
+## System Architecture
+
+![system architecture](https://hackmd.io/_uploads/S1mDjn7Xlx.png)
 
 ## API Endpoints
 
@@ -75,24 +89,26 @@ This Todo provides a comprehensive solution for managing group tasks, messages, 
 
 ## Installation
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Set up environment variables (create `.env` file):
+### 1. Clone the repository
    ```
-   MONGODB_URI=your_mongodb_connection_string
-   JWT_SECRET=your_jwt_secret_key
-   PORT=3000
+   git clone https://github.com/reimoyisuki/ToDoList.git
+   cd ToDoList
    ```
-4. Start the server: `npm start`
-
-## Technologies Used
-
-- Node.js
-- Express.js
-- MongoDB (with Mongoose)
-- JWT for authentication
-- Bcrypt for password hashing
-
+### 2. Make sure Docker is installed on your device <br>
+   You can download and install Docker from https://www.docker.com/get-started <br>
+   To verify that Docker is installed correctly:
+   ```
+   docker --version
+   docker compose version
+   ```
+### 3. Run the application using Docker Compose
+   ```
+   docker compose up --build
+   ```
+### 4. Access the aplication on your browser
+   ```
+   http://localhost:3000
+   ```
 ## Error Handling
 
 All API responses follow this format:
