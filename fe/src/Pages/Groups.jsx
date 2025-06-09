@@ -11,6 +11,7 @@ export default function Groups() {
     const { user: authUser, loading: authLoading } = useAuth();
     const [isNavOpen, setIsNavOpen] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [mostActiveUsers, setMostActiveUsers] = useState({});
     const [newGroup, setNewGroup] = useState({
         name: '',
         description: '',
@@ -34,6 +35,9 @@ export default function Groups() {
                     });
                     console.log('Groups response:', response.data);
 
+                    groupsData.forEach(group => {
+                        fetchMostActiveUsers(group._id);
+                    });
                     if (response.data.success) {
                         setGroups(response.data.data || []);
                     } else {
@@ -131,6 +135,28 @@ export default function Groups() {
         return new Date(dateString).toLocaleDateString(undefined, options);
     };
 
+    const fetchMostActiveUsers = async (groupId) => {
+        try {
+            const response = await axios.get(
+            `http://localhost:4000/message/${groupId}/most-active`,
+            {
+                headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+            }
+            );
+            
+            if (response.data.success) {
+            setMostActiveUsers(prev => ({
+                ...prev,
+                [groupId]: response.data.data
+            }));
+            }
+        } catch (error) {
+            console.error('Error fetching most active users:', error);
+        }
+    };
+
     if (authLoading) {
         return (
             <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -192,6 +218,19 @@ export default function Groups() {
                                         <p className="text-gray-400 text-sm mb-3 line-clamp-2">
                                             {group.description || 'No description provided'}
                                         </p>
+                                        {mostActiveUsers[group._id]?.length > 0 && (
+                                            <div className="mb-3">
+                                            <p className="text-xs text-gray-500 mb-1">Most active:</p>
+                                            <div className="flex items-center">
+                                                <span className="text-amber-400 text-sm font-medium">
+                                                {mostActiveUsers[group._id][0].username}
+                                                </span>
+                                                <span className="text-gray-500 text-xs ml-2">
+                                                ({mostActiveUsers[group._id][0].messageCount} messages)
+                                                </span>
+                                            </div>
+                                            </div>
+                                        )}
                                         <div className="flex items-center justify-between text-xs text-gray-500">
                                             <span>
                                                 {group.members.length} member{group.members.length !== 1 ? 's' : ''}
