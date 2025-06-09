@@ -3,9 +3,9 @@
 ##
 ## Contributors
 ```
-Azra Nabila Azzahra - 2306161782
-Arsinta Kirana Nisa - 2306215980
-Kharisma Aprilia - 2306223244
+Azra Nabila Azzahra   (2306161782) - Teknik Komputer
+Arsinta Kirana Nisa   (2306215980) - Teknik Komputer
+Kharisma Aprilia      (2306223244) - Teknik Komputer
 ```
 
 ## Overview
